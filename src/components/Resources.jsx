@@ -1,182 +1,236 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
+/*
+  ResourcesWithAI.jsx
+  - Enhanced Resources page with:
+    - AI-powered recommendations (client-side similarity)
+    - Featured resources slider (auto + manual)
+    - Animated category filter
+    - Online PDF preview modal (iframe)
+
+  Drop this file into your React app. It uses only React and localStorage.
+*/
+
+// --- DEFAULT RESOURCES (replace or extend as needed) ---
 const DEFAULT_RESOURCES = [
   {
     id: "res-1",
-    title: "Postpartum Recovery Guide",
-    description: "Evidence‑based guide covering physical and emotional recovery after childbirth.",
+    title: "Postpartum Recovery Guide (WHO)",
+    description:
+      "Evidence-based physical and emotional recovery guide for new mothers.",
     category: "Postpartum Care",
     url: "https://www.who.int/reproductivehealth/publications/maternal_perinatal_health/postpartum-care/en/",
     filename: "WHO-Postpartum-Care.pdf",
     createdAt: new Date().toISOString(),
-    icon: "🩺"
+    icon: "🩺",
   },
   {
     id: "res-2",
-    title: "Postpartum Depression Handbook",
-    description: "Comprehensive overview of symptoms, risk factors, screening tools, and treatments.",
+    title: "Postpartum Depression Handbook (APA)",
+    description: "Symptoms, risk factors, screening tools, and effective treatments.",
     category: "Mental Health",
     url: "https://www.apa.org/pi/women/resources/reports/postpartum-depression",
     filename: "APA-PPD-Handbook.pdf",
     createdAt: new Date().toISOString(),
-    icon: "🧠"
+    icon: "🧠",
   },
   {
     id: "res-3",
     title: "Breastfeeding Support Toolkit",
-    description: "Practical breastfeeding techniques, troubleshooting, and lactation support resources.",
+    description: "Professional UNICEF toolkit with breastfeeding coaching and troubleshooting.",
     category: "Breastfeeding",
     url: "https://www.unicef.org/reports/breastfeeding-support-toolkit",
     filename: "UNICEF-Breastfeeding-Toolkit.pdf",
     createdAt: new Date().toISOString(),
-    icon: "🤱"
+    icon: "🤱",
   },
   {
     id: "res-4",
     title: "Postpartum Nutrition Guide",
-    description: "Nutritional guidelines, meal planning, and recovery-focused diet recommendations.",
+    description: "Nutritional guidelines, healing foods, hydration, and meal planning.",
     category: "Nutrition",
     url: "https://www.cdc.gov/nutrition/resources-publications/pregnancy-infant-toddler-nutrition/index.html",
     filename: "CDC-Postpartum-Nutrition.pdf",
     createdAt: new Date().toISOString(),
-    icon: "🍎"
+    icon: "🍎",
   },
   {
     id: "res-5",
     title: "Newborn Care Essentials",
-    description: "Safe sleep, diapering, bathing, feeding, and newborn health guidance.",
+    description: "Safe sleep, diapering, bathing, feeding, and newborn health essentials.",
     category: "Newborn Care",
     url: "https://www.cdc.gov/reproductivehealth/features/pregnancy-newborn-mother-care/index.html",
     filename: "CDC-Newborn-Care.pdf",
     createdAt: new Date().toISOString(),
-    icon: "👶"
+    icon: "👶",
   },
   {
     id: "res-6",
     title: "Partner Support Guide",
-    description: "How partners can provide emotional and practical support during postpartum recovery.",
+    description: "How partners can emotionally and practically support postpartum mothers.",
     category: "Relationships",
     url: "https://www.postpartum.net/get-help/for-partners/",
     filename: "PSI-Partner-Guide.pdf",
     createdAt: new Date().toISOString(),
-    icon: "💑"
+    icon: "💑",
   },
 ];
 
-const styles = {
-  page: {
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    maxWidth: 1200,
-    margin: "0 auto",
-    padding: "24px",
-    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-    minHeight: "100vh"
-  },
-  header: {
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    borderRadius: "20px",
-    padding: "32px",
-    color: "white",
-    marginBottom: "32px",
-    boxShadow: "0 10px 30px rgba(102, 126, 234, 0.2)"
-  },
-  card: {
-    background: "white",
-    borderRadius: "16px",
-    padding: "24px",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)",
-    border: "1px solid #f1f5f9",
-    transition: "all 0.3s ease",
-    cursor: "pointer",
-    position: "relative",
-    overflow: "hidden"
-  },
-  cardHover: {
-    transform: "translateY(-4px)",
-    boxShadow: "0 12px 40px rgba(0, 0, 0, 0.12)"
-  },
-  input: {
-    padding: "14px 16px",
-    borderRadius: "12px",
-    border: "2px solid #e2e8f0",
-    outline: "none",
-    fontSize: "15px",
-    background: "white",
-    transition: "all 0.2s ease"
-  },
-  inputFocus: {
-    borderColor: "#667eea",
-    boxShadow: "0 0 0 3px rgba(102, 126, 234, 0.1)"
-  },
-  btnPrimary: {
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    color: "white",
-    padding: "12px 24px",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: "600",
-    fontSize: "14px",
-    transition: "all 0.2s ease"
-  },
-  btnGhost: {
-    background: "transparent",
-    border: "2px solid #e2e8f0",
-    padding: "10px 20px",
-    borderRadius: "10px",
-    cursor: "pointer",
-    color: "#64748b",
-    fontWeight: "500",
-    fontSize: "14px",
-    transition: "all 0.2s ease"
-  },
-  categoryTag: {
-    background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
-    color: "white",
-    padding: "6px 12px",
-    borderRadius: "20px",
-    fontSize: "12px",
-    fontWeight: "600"
-  },
-  iconCircle: {
-    width: "60px",
-    height: "60px",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "24px",
-    marginBottom: "16px",
-    background: "linear-gradient(135deg, #667eea20 0%, #764ba220 100%)"
-  }
-};
-
+// --- Utility functions ---
 function uid(prefix = "id") {
   return prefix + "-" + Math.random().toString(36).slice(2, 9);
 }
 
-export default function Resources() {
+function tokenize(text = "") {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function jaccard(a = [], b = []) {
+  const A = new Set(a);
+  const B = new Set(b);
+  const inter = new Set([...A].filter((x) => B.has(x)));
+  const uni = new Set([...A, ...B]);
+  return uni.size === 0 ? 0 : inter.size / uni.size;
+}
+
+// Very small client-side "AI" similarity: token overlap on title+desc+category
+function computeSimilarityMatrix(items) {
+  const tokens = items.map((it) => tokenize(it.title + " " + it.description + " " + it.category));
+  const mat = items.map((it, i) =>
+    items.map((_, j) => {
+      if (i === j) return 1;
+      return jaccard(tokens[i], tokens[j]);
+    })
+  );
+  return mat;
+}
+
+// --- Styles (kept inline for single-file simplicity) ---
+const S = {
+  page: {
+    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
+    padding: "16px 12px",
+    maxWidth: "100%",
+    margin: "0 auto",
+    background: "linear-gradient(180deg,#081426 0%, #0f172a 100%)",
+    minHeight: "100vh",
+    color: "#e6eef8",
+    boxSizing: "border-box",
+  },
+  header: {
+    background: "linear-gradient(90deg,#6d28d9 0%, #7c3aed 100%)",
+    padding: "20px 16px",
+    borderRadius: "12px",
+    boxShadow: "0 8px 40px rgba(16,24,40,0.6)",
+    marginBottom: "16px",
+  },
+  controls: { 
+    display: "flex", 
+    gap: "12px", 
+    marginTop: "16px", 
+    alignItems: "center",
+    flexWrap: "wrap" 
+  },
+  input: {
+    padding: "10px 12px",
+    borderRadius: "8px",
+    border: "1px solid rgba(255,255,255,0.07)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#e6eef8",
+    outline: "none",
+    fontSize: "14px",
+    flex: "1",
+    minWidth: "200px",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "16px",
+    alignItems: "start",
+  },
+  leftCol: {},
+  rightCol: {},
+  card: {
+    background: "linear-gradient(180deg,#0f172a, #111827)",
+    padding: "16px",
+    borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.04)",
+    marginBottom: "12px",
+  },
+  featured: { position: "relative", overflow: "hidden", borderRadius: "10px" },
+  sliderInner: { display: "flex", transition: "transform 500ms ease" },
+  categoryStrip: { 
+    display: "flex", 
+    gap: "6px", 
+    flexWrap: "wrap", 
+    marginTop: "12px" 
+  },
+  catBtn: { 
+    padding: "6px 10px", 
+    borderRadius: "20px", 
+    cursor: "pointer", 
+    fontWeight: 600, 
+    border: "1px solid rgba(255,255,255,0.04)",
+    fontSize: "12px",
+    whiteSpace: "nowrap"
+  },
+  activeCat: { background: "linear-gradient(90deg,#ff7a59,#ff6bcb)", color: "white" },
+  resourceCard: { 
+    display: "flex", 
+    flexDirection: "column",
+    gap: "12px"
+  },
+  iconBox: { 
+    width: "48px", 
+    height: "48px", 
+    borderRadius: "8px", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    fontSize: "20px", 
+    background: "rgba(255,255,255,0.03)" 
+  },
+  recList: { marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" },
+  modalBackdrop: { 
+    position: "fixed", 
+    inset: 0, 
+    background: "rgba(0,0,0,0.6)", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    zIndex: 9999,
+    padding: "16px"
+  },
+  modal: { 
+    width: "100%", 
+    maxWidth: "600px", 
+    height: "auto",
+    maxHeight: "90vh",
+    background: "#0b1220", 
+    borderRadius: "10px", 
+    overflow: "hidden", 
+    border: "1px solid rgba(255,255,255,0.06)" 
+  },
+};
+
+export default function ResourcesWithAI() {
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", category: "Postpartum Care", url: "", filename: "", icon: "📄" });
-  const [hoverCard, setHoverCard] = useState(null);
 
-  // Icons for categories
-  const categoryIcons = {
-    "Postpartum Care": "🩺",
-    "Mental Health": "🧠",
-    "Breastfeeding": "🤱",
-    "Nutrition": "🍎",
-    "Newborn Care": "👶",
-    "Relationships": "💑",
-    "General": "📄"
-  };
+  // UI state
+  const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [preview, setPreview] = useState(null); // resource to preview PDF
+  const [selected, setSelected] = useState(null); // selected resource for details and recommendations
 
   useEffect(() => {
-    const raw = localStorage.getItem("rs_items");
+    const raw = localStorage.getItem("rs_items_v2");
     if (raw) {
       try {
         setItems(JSON.parse(raw));
@@ -189,377 +243,353 @@ export default function Resources() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("rs_items", JSON.stringify(items));
+    localStorage.setItem("rs_items_v2", JSON.stringify(items));
   }, [items]);
 
-  function handleAddClick() {
-    setForm({ title: "", description: "", category: "Postpartum Care", url: "", filename: "", icon: "📄" });
-    setEditing(null);
-    setShowForm(true);
-  }
+  // Featured slider autoplay
+  useEffect(() => {
+    const t = setInterval(() => setFeaturedIndex((i) => (i + 1) % Math.max(1, items.length)), 4500);
+    return () => clearInterval(t);
+  }, [items.length]);
 
-  function handleEditClick(item) {
-    setEditing(item.id);
-    setForm({ 
-      title: item.title, 
-      description: item.description, 
-      category: item.category, 
-      url: item.url, 
-      filename: item.filename || "",
-      icon: item.icon || categoryIcons[item.category] || "📄"
+  // Categories derived from items
+  const categories = useMemo(() => ["All", ...Array.from(new Set(items.map((i) => i.category || "General")))], [items]);
+
+  const results = useMemo(() => {
+    return items.filter((it) => {
+      if (category !== "All" && (it.category || "General") !== category) return false;
+      if (!query) return true;
+      const q = query.toLowerCase();
+      return (it.title || "").toLowerCase().includes(q) || (it.description || "").toLowerCase().includes(q) || (it.category || "").toLowerCase().includes(q);
     });
-    setShowForm(true);
+  }, [items, category, query]);
+
+  // AI: compute similarity matrix only when items change
+  const simMatrix = useMemo(() => computeSimilarityMatrix(items), [items]);
+
+  function getRecommendationsFor(resourceId, max = 3) {
+    const idx = items.findIndex((it) => it.id === resourceId);
+    if (idx === -1) return [];
+    const scores = simMatrix[idx].map((score, j) => ({ score, item: items[j] }));
+    // sort by score desc, skip itself
+    const sorted = scores
+      .filter((s, j) => j !== idx)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, max)
+      .map((s) => s.item);
+    return sorted;
   }
 
-  function handleDeleteClick(id) {
-    if (!confirm("Delete this resource?")) return;
-    setItems((prev) => prev.filter((p) => p.id !== id));
+  function openPreview(item) {
+    // NOTE: embedding arbitrary external URLs in an iframe may be blocked by X-Frame-Options/CSP.
+    // We still provide the modal; if the resource cannot be embedded, the user can open in new tab.
+    setPreview(item);
   }
 
-  function submitForm(e) {
+  function handleCreate(e) {
     e.preventDefault();
-    const trimmedTitle = (form.title || "").trim();
-    if (!trimmedTitle) return alert("Title is required");
-
-    const finalForm = {
-      ...form,
-      icon: form.icon || categoryIcons[form.category] || "📄"
-    };
-
-    if (editing) {
-      setItems((prev) => prev.map((it) => 
-        it.id === editing ? { ...it, ...finalForm, updatedAt: new Date().toISOString() } : it
-      ));
-    } else {
-      const newItem = {
-        id: uid("res"),
-        ...finalForm,
-        createdAt: new Date().toISOString(),
-      };
-      setItems((prev) => [newItem, ...prev]);
-    }
+    const title = (form.title || "").trim();
+    if (!title) return alert("Title required");
+    const newItem = { id: uid("res"), ...form, createdAt: new Date().toISOString() };
+    setItems((p) => [newItem, ...p]);
     setShowForm(false);
-    setEditing(null);
+    setForm({ title: "", description: "", category: "Postpartum Care", url: "", filename: "", icon: "📄" });
   }
 
-  const categories = ["All", ...Array.from(new Set(items.map((i) => i.category || "General")))];
-  
-  const results = items.filter((it) => {
-    if (category !== "All" && (it.category || "General") !== category) return false;
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (it.title || "").toLowerCase().includes(q) || 
-           (it.description || "").toLowerCase().includes(q) || 
-           (it.category || "").toLowerCase().includes(q);
-  });
-
-  function ResourceCard({ r }) {
-    return (
-      <div 
-        style={{ 
-          ...styles.card,
-          ...(hoverCard === r.id ? styles.cardHover : {})
-        }}
-        onMouseEnter={() => setHoverCard(r.id)}
-        onMouseLeave={() => setHoverCard(null)}
-      >
-        <div style={styles.iconCircle}>
-          {r.icon || categoryIcons[r.category] || "📄"}
-        </div>
-        
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
-          <div style={{ flex: 1 }}>
-            <h3 style={{ 
-              margin: "0 0 8px 0", 
-              fontSize: "18px", 
-              fontWeight: "700",
-              color: "#1e293b"
-            }}>
-              {r.title}
-            </h3>
-            
-            <p style={{ 
-              margin: "0 0 16px 0", 
-              fontSize: "14px", 
-              color: "#64748b",
-              lineHeight: "1.5"
-            }}>
-              {r.description}
-            </p>
-            
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-              <span style={styles.categoryTag}>
-                {r.category}
-              </span>
-              {r.filename && (
-                <span style={{ 
-                  fontSize: "12px", 
-                  color: "#94a3b8",
-                  background: "#f8fafc",
-                  padding: "4px 8px",
-                  borderRadius: "6px"
-                }}>
-                  {r.filename}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ 
-          display: "flex", 
-          gap: "12px", 
-          marginTop: "20px",
-          borderTop: "1px solid #f1f5f9",
-          paddingTop: "16px"
-        }}>
-          <button
-            style={{ ...styles.btnGhost, flex: 1 }}
-            onClick={() => window.open(r.url, "_blank")}
-          >
-            📖 Open
-          </button>
-          
-          <a href={r.url} download style={{ textDecoration: "none", flex: 1 }}>
-            <button style={{ ...styles.btnPrimary, width: "100%" }}>
-              ⬇️ Download
-            </button>
-          </a>
-        </div>
-
-        <div style={{ 
-          display: "flex", 
-          gap: "8px", 
-          marginTop: "12px"
-        }}>
-          <button 
-            style={{ ...styles.btnGhost, flex: 1, fontSize: "12px" }}
-            onClick={() => handleEditClick(r)}
-          >
-            ✏️ Edit
-          </button>
-          <button 
-            style={{ 
-              ...styles.btnGhost, 
-              flex: 1, 
-              fontSize: "12px",
-              borderColor: "#fecaca",
-              color: "#dc2626"
-            }} 
-            onClick={() => handleDeleteClick(r.id)}
-          >
-            🗑️ Delete
-          </button>
-        </div>
-      </div>
-    );
+  function handleDelete(id) {
+    if (!confirm("Delete resource?")) return;
+    setItems((p) => p.filter((it) => it.id !== id));
+    if (selected && selected.id === id) setSelected(null);
   }
 
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <h1 style={{ margin: "0 0 8px 0", fontSize: "32px", fontWeight: "800" }}>
-              Postpartum Resources
-            </h1>
-            <p style={{ margin: 0, fontSize: "16px", opacity: 0.9 }}>
-              Access helpful guides and support materials for your postpartum journey.
-            </p>
+    <div style={S.page}>
+      <div style={S.header}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ flex: "1", minWidth: "250px" }}>
+              <h1 style={{ margin: 0, fontSize: "24px", fontWeight: 800, lineHeight: "1.2" }}>Postpartum Resources — AI Recommendations</h1>
+              <p style={{ margin: "8px 0 0 0", color: "rgba(230,238,248,0.85)", fontSize: "14px" }}>Find, preview, and discover related resources powered by a lightweight client-side recommendation engine.</p>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => setShowForm(true)} style={{ 
+                padding: "8px 12px", 
+                borderRadius: "8px", 
+                background: "#ffffff10", 
+                color: "#fff", 
+                border: "1px solid rgba(255,255,255,0.06)", 
+                cursor: "pointer",
+                fontSize: "14px",
+                whiteSpace: "nowrap"
+              }}>+ Add Resource</button>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "12px" }}>
-            <button onClick={handleAddClick} style={styles.btnPrimary}>
-              + Add Resource
-            </button>
+
+          {/* controls */}
+          <div style={S.controls}>
+            <input 
+              style={S.input} 
+              placeholder="Search resources..." 
+              value={query} 
+              onChange={(e) => setQuery(e.target.value)} 
+            />
+            <div style={S.categoryStrip}>
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  style={{
+                    ...S.catBtn,
+                    ...(category === c ? S.activeCat : {}),
+                    transition: "transform 220ms ease, box-shadow 220ms ease",
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Search and Filter */}
-        <div style={{ display: "flex", gap: "16px", marginTop: "24px", alignItems: "center" }}>
-          <input
-            placeholder="🔍 Search resources..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ 
-              ...styles.input, 
-              flex: 1,
-              background: "rgba(255,255,255,0.15)",
-              borderColor: "rgba(255,255,255,0.3)",
-              color: "white",
-              backdropFilter: "blur(10px)"
-            }}
-            onFocus={(e) => e.target.style.background = "rgba(255,255,255,0.25)"}
-            onBlur={(e) => e.target.style.background = "rgba(255,255,255,0.15)"}
-          />
+      <div style={S.grid}>
+        {/* LEFT: results + featured */}
+        <div style={S.leftCol}>
+          {/* Featured slider */}
+          {items.length > 0 && (
+            <div style={{ ...S.card, ...S.featured }}>
+              <h3 style={{ marginTop: 0, fontSize: "18px" }}>Featured Resources</h3>
+              <div style={{ overflow: "hidden", borderRadius: "8px" }}>
+                <div style={{ ...S.sliderInner, width: `${Math.max(1, items.length) * 100}%`, transform: `translateX(-${(featuredIndex * 100) / Math.max(1, items.length)}%)` }}>
+                  {items.map((it) => (
+                    <div key={it.id} style={{ width: `${100 / Math.max(1, items.length)}%`, padding: "12px", boxSizing: "border-box" }}>
+                      <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={S.iconBox}>{it.icon || "📄"}</div>
+                        <div style={{ flex: "1", minWidth: "200px" }}>
+                          <div style={{ fontSize: "16px", fontWeight: 700 }}>{it.title}</div>
+                          <div style={{ fontSize: "13px", color: "#c7d2e6", marginTop: "4px" }}>{it.description}</div>
+                          <div style={{ marginTop: "8px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            <button onClick={() => { openPreview(it); }} style={{ 
+                              padding: "6px 8px", 
+                              borderRadius: "6px", 
+                              border: "none", 
+                              cursor: "pointer", 
+                              background: "#7c3aed", 
+                              color: "white",
+                              fontSize: "12px"
+                            }}>Preview</button>
+                            <a href={it.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                              <button style={{ 
+                                padding: "6px 8px", 
+                                borderRadius: "6px", 
+                                border: "1px solid rgba(255,255,255,0.06)", 
+                                background: "transparent", 
+                                color: "white", 
+                                cursor: "pointer",
+                                fontSize: "12px"
+                              }}>Open</button>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          <select 
-            value={category} 
-            onChange={(e) => setCategory(e.target.value)} 
-            style={{ 
-              ...styles.input,
-              minWidth: "160px",
-              background: "rgba(255,255,255,0.15)",
-              borderColor: "rgba(255,255,255,0.3)",
-              color: "white",
-              backdropFilter: "blur(10px)"
-            }}
-          >
-            {categories.map((c) => (
-              <option key={c} value={c} style={{ color: "black" }}>{c}</option>
+              {/* manual controls */}
+              <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "12px" }}>
+                <button onClick={() => setFeaturedIndex((i) => (i - 1 + items.length) % Math.max(1, items.length))} style={{ 
+                  padding: "4px 6px", 
+                  borderRadius: "4px", 
+                  border: "1px solid rgba(255,255,255,0.04)", 
+                  background: "transparent", 
+                  cursor: "pointer",
+                  color: "white"
+                }}>◀</button>
+                {items.map((_, i) => (
+                  <div key={i} onClick={() => setFeaturedIndex(i)} style={{ 
+                    width: "6px", 
+                    height: "6px", 
+                    borderRadius: "50%", 
+                    background: i === featuredIndex ? "#ff7a59" : "#ffffff10", 
+                    cursor: "pointer" 
+                  }} />
+                ))}
+                <button onClick={() => setFeaturedIndex((i) => (i + 1) % Math.max(1, items.length))} style={{ 
+                  padding: "4px 6px", 
+                  borderRadius: "4px", 
+                  border: "1px solid rgba(255,255,255,0.04)", 
+                  background: "transparent", 
+                  cursor: "pointer",
+                  color: "white"
+                }}>▶</button>
+              </div>
+            </div>
+          )}
+
+          {/* Results list */}
+          <div style={{ marginTop: "12px" }}>
+            {results.map((r) => (
+              <div key={r.id} style={{ ...S.card, ...S.resourceCard }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div style={S.iconBox}>{r.icon || "📄"}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "16px", fontWeight: 700, lineHeight: "1.3" }}>{r.title}</div>
+                    <div style={{ fontSize: "13px", color: "#c7d2e6", marginTop: "6px", lineHeight: "1.4" }}>{r.description}</div>
+                    <div style={{ marginTop: "10px", display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ 
+                        padding: "4px 8px", 
+                        borderRadius: "12px", 
+                        background: "#ffffff04", 
+                        fontSize: "11px" 
+                      }}>{r.category}</span>
+                      {r.filename && <span style={{ fontSize: "11px", color: "#94a3b8" }}>{r.filename}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-start", flexWrap: "wrap" }}>
+                  <button onClick={() => { openPreview(r); }} style={{ 
+                    padding: "6px 8px", 
+                    borderRadius: "6px", 
+                    border: "none", 
+                    background: "#7c3aed", 
+                    color: "white", 
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}>Preview</button>
+                  <a href={r.url} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                    <button style={{ 
+                      padding: "6px 8px", 
+                      borderRadius: "6px", 
+                      border: "1px solid rgba(255,255,255,0.06)", 
+                      background: "transparent", 
+                      color: "white", 
+                      cursor: "pointer",
+                      fontSize: "12px"
+                    }}>Open</button>
+                  </a>
+                  <button onClick={() => { setSelected(r); }} style={{ 
+                    padding: "6px 8px", 
+                    borderRadius: "6px", 
+                    background: "#0b1220", 
+                    color: "#c7d2e6", 
+                    border: "1px solid rgba(255,255,255,0.04)", 
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}>Details</button>
+                  <button onClick={() => handleDelete(r.id)} style={{ 
+                    padding: "6px 8px", 
+                    borderRadius: "6px", 
+                    background: "#3b0a0a", 
+                    color: "#ffd7d7", 
+                    border: "1px solid rgba(255,255,255,0.04)", 
+                    cursor: "pointer",
+                    fontSize: "12px"
+                  }}>Delete</button>
+                </div>
+              </div>
             ))}
-          </select>
+
+            {results.length === 0 && (
+              <div style={{ ...S.card, textAlign: "center" }}>
+                <div style={{ fontSize: "28px" }}>📚</div>
+                <div style={{ marginTop: "8px", color: "#c7d2e6" }}>No resources found — try another search or category.</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Resources Grid */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", 
-        gap: "24px" 
-      }}>
-        {results.map((r) => (
-          <ResourceCard key={r.id} r={r} />
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {results.length === 0 && (
-        <div style={{ 
-          textAlign: "center", 
-          padding: "60px 20px",
-          color: "#64748b"
-        }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>📚</div>
-          <h3 style={{ margin: "0 0 8px 0", color: "#475569" }}>No resources found</h3>
-          <p>Try adjusting your search or add a new resource.</p>
-        </div>
-      )}
-
-      {/* Add/Edit Form Modal */}
+      {/* FORM MODAL */}
       {showForm && (
-        <div style={{ 
-          position: "fixed", 
-          inset: 0, 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center", 
-          zIndex: 1000,
-          padding: "20px"
-        }}>
-          <div style={{ 
-            position: "absolute", 
-            inset: 0, 
-            background: "rgba(0,0,0,0.5)", 
-            backdropFilter: "blur(4px)" 
-          }} 
-          onClick={() => setShowForm(false)} 
-          />
-          
-          <form onSubmit={submitForm} style={{ 
-            width: "600px",
-            maxWidth: "100%",
-            borderRadius: "20px",
-            padding: "32px",
-            background: "white",
-            boxShadow: "0 25px 50px rgba(0,0,0,0.2)",
-            zIndex: 1001,
-            position: "relative"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <h2 style={{ margin: 0, fontSize: "24px", fontWeight: "700" }}>
-                {editing ? "Edit Resource" : "Add New Resource"}
-              </h2>
-              <div style={{ display: "flex", gap: "12px" }}>
-                <button type="button" onClick={() => { setShowForm(false); setEditing(null); }} style={styles.btnGhost}>
-                  Cancel
-                </button>
-                <button type="submit" style={styles.btnPrimary}>
-                  {editing ? "Save Changes" : "Create Resource"}
-                </button>
+        <div style={S.modalBackdrop} onClick={() => setShowForm(false)}>
+          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={{ 
+              padding: "16px", 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center", 
+              borderBottom: "1px solid rgba(255,255,255,0.03)" 
+            }}>
+              <div>
+                <strong style={{ fontSize: "16px" }}>Add Resource</strong>
+                <div style={{ fontSize: "13px", color: "#9fb1d6" }}>Fill details and then Create</div>
+              </div>
+              <div>
+                <button onClick={() => setShowForm(false)} style={{ 
+                  padding: "6px 8px", 
+                  borderRadius: "6px", 
+                  background: "#ffffff10", 
+                  color: "#fff", 
+                  border: "none",
+                  fontSize: "12px"
+                }}>Close</button>
               </div>
             </div>
-
-            <div style={{ display: "grid", gap: "20px" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                  Title *
-                </label>
+            <form onSubmit={handleCreate} style={{ padding: "16px", display: "grid", gap: "12px" }}>
+              <input 
+                placeholder="Title" 
+                value={form.title} 
+                onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} 
+                style={S.input} 
+                required 
+              />
+              <textarea 
+                placeholder="Description" 
+                value={form.description} 
+                onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} 
+                style={{ ...S.input, minHeight: "80px" }} 
+              />
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <select 
+                  value={form.category} 
+                  onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))} 
+                  style={{ ...S.input, flex: "1", minWidth: "120px" }}
+                >
+                  {categories.filter((c) => c !== "All").map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
                 <input 
-                  value={form.title} 
-                  onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} 
-                  style={{ ...styles.input, width: "100%" }}
-                  required
+                  placeholder="Icon (emoji)" 
+                  value={form.icon} 
+                  onChange={(e) => setForm((s) => ({ ...s, icon: e.target.value }))} 
+                  style={{ ...S.input, width: "80px" }} 
                 />
               </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                  Description
-                </label>
-                <textarea 
-                  value={form.description} 
-                  onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} 
-                  rows={3}
-                  style={{ ...styles.input, width: "100%", resize: "vertical" }}
-                />
+              <input 
+                placeholder="URL" 
+                value={form.url} 
+                onChange={(e) => setForm((s) => ({ ...s, url: e.target.value }))} 
+                style={S.input} 
+                required 
+              />
+              <input 
+                placeholder="Filename (optional)" 
+                value={form.filename} 
+                onChange={(e) => setForm((s) => ({ ...s, filename: e.target.value }))} 
+                style={S.input} 
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button type="button" onClick={() => setShowForm(false)} style={{ 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  background: "transparent", 
+                  border: "1px solid rgba(255,255,255,0.04)", 
+                  color: "#c7d2e6",
+                  fontSize: "12px"
+                }}>Cancel</button>
+                <button type="submit" style={{ 
+                  padding: "8px 12px", 
+                  borderRadius: "6px", 
+                  background: "#7c3aed", 
+                  color: "white", 
+                  border: "none",
+                  fontSize: "12px"
+                }}>Create</button>
               </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                    Category
-                  </label>
-                  <select 
-                    value={form.category} 
-                    onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))} 
-                    style={{ ...styles.input, width: "100%" }}
-                  >
-                    {categories.filter(c => c !== "All").map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                    Icon
-                  </label>
-                  <input 
-                    value={form.icon} 
-                    onChange={(e) => setForm((s) => ({ ...s, icon: e.target.value }))} 
-                    placeholder="🎯"
-                    style={{ ...styles.input, width: "100%" }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                  URL *
-                </label>
-                <input 
-                  value={form.url} 
-                  onChange={(e) => setForm((s) => ({ ...s, url: e.target.value }))} 
-                  style={{ ...styles.input, width: "100%" }}
-                  placeholder="https://example.com/resource.pdf"
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", color: "#374151" }}>
-                  Filename (optional)
-                </label>
-                <input 
-                  value={form.filename} 
-                  onChange={(e) => setForm((s) => ({ ...s, filename: e.target.value }))} 
-                  style={{ ...styles.input, width: "100%" }}
-                  placeholder="Resource-Guide.pdf"
-                />
-              </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
     </div>

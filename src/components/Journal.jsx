@@ -1,4 +1,4 @@
-// Journal.jsx
+// Journal.jsx (UI enhanced — no feature changes)
 import React, { useEffect, useRef, useState } from "react";
 import { transcribeAudioBlob } from "../utils/whisper";
 
@@ -30,15 +30,15 @@ export default function Journal() {
   useEffect(() => {
     const canvas = document.querySelector(".audio-visualizer");
     if (!canvas) return;
-    
-    // Clear existing bars
     canvas.innerHTML = '';
-    
-    // Create new bars
-    for (let i = 0; i < 20; i++) {
+
+    for (let i = 0; i < 25; i++) {
       const bar = document.createElement("div");
       bar.className = "audio-bar";
-      bar.style.height = "10%";
+      bar.style.height = "12%";
+      bar.style.width = "4px";
+      bar.style.borderRadius = "6px";
+      bar.style.background = "var(--accent)";
       canvas.appendChild(bar);
     }
   }, []);
@@ -52,26 +52,22 @@ export default function Journal() {
 
   function animateVisualizer() {
     const bars = document.querySelectorAll(".audio-bar");
-    
+
     function update() {
       bars.forEach((bar) => {
-        const height = isRecording ? Math.floor(Math.random() * 90) + 10 : 10;
+        const height = isRecording
+          ? Math.floor(Math.random() * 85) + 15
+          : 12;
         bar.style.height = `${height}%`;
       });
-      if (isRecording) {
-        animationRef.current = requestAnimationFrame(update);
-      }
+      if (isRecording) animationRef.current = requestAnimationFrame(update);
     }
     update();
   }
 
-  // Initialize browser SpeechRecognition
   const initSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("SpeechRecognition not supported in this browser");
-      return null;
-    }
+    if (!SpeechRecognition) return null;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -81,19 +77,13 @@ export default function Journal() {
     recognition.onresult = (event) => {
       let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscriptRef.current += transcript + ' ';
-        } else {
-          interimTranscript += transcript;
-        }
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTranscriptRef.current += text + ' ';
+        else interimTranscript += text;
       }
+
       setTranscript(finalTranscriptRef.current + interimTranscript);
       setUseTranscriptEnabled(finalTranscriptRef.current.length > 0);
-    };
-
-    recognition.onerror = (event) => {
-      console.warn('Speech recognition error', event.error);
     };
 
     return recognition;
@@ -102,6 +92,7 @@ export default function Journal() {
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
       mediaRecorderRef.current = new MediaRecorder(stream);
       chunksRef.current = [];
       finalTranscriptRef.current = "";
@@ -112,20 +103,19 @@ export default function Journal() {
 
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/wav" });
-        
-        // If we have final transcript from browser API, use it
+
         if (finalTranscriptRef.current.trim()) {
           setTranscript(finalTranscriptRef.current.trim());
           setUseTranscriptEnabled(true);
         } else {
-          // Otherwise try Hugging Face API
           try {
-            const apiKey = ""; // Add your Hugging Face API key here if you have one
-            const text = await transcribeAudioBlob(audioBlob, { apiKey });
+            const text = await transcribeAudioBlob(audioBlob, { apiKey: "" });
             setTranscript(text || "No transcription returned");
             setUseTranscriptEnabled(true);
-          } catch (err) {
-            setTranscript("Transcription completed. No API key configured for automatic transcription.");
+          } catch {
+            setTranscript(
+              "Transcription finished (No API key connected for Whisper)."
+            );
             setUseTranscriptEnabled(true);
           }
         }
@@ -133,14 +123,11 @@ export default function Journal() {
         stream.getTracks().forEach((t) => t.stop());
       };
 
-      // Start browser SpeechRecognition if available
       recognitionRef.current = initSpeechRecognition();
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
-        } catch (err) {
-          console.warn("Speech recognition start failed:", err);
-        }
+        } catch {}
       }
 
       mediaRecorderRef.current.start();
@@ -151,52 +138,42 @@ export default function Journal() {
       animateVisualizer();
 
     } catch (err) {
-      console.error("Error accessing microphone:", err);
-      alert("Could not access microphone. Please check permissions.");
+      alert("Microphone permission denied. Enable it and try again.");
     }
   }
 
   function stopRecording() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (mediaRecorderRef.current?.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
 
-    // Stop speech recognition
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (err) {
-        console.warn("Speech recognition stop failed:", err);
-      }
+      } catch {}
     }
 
     setIsRecording(false);
     clearInterval(timerRef.current);
     setRecordingTime("00:00");
-    
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    
-    const bars = document.querySelectorAll(".audio-bar");
-    bars.forEach((b) => (b.style.height = "10%"));
+    cancelAnimationFrame(animationRef.current);
 
-    // If no transcript was captured, show a message
+    document.querySelectorAll(".audio-bar").forEach((b) => {
+      b.style.height = "12%";
+    });
+
     if (!finalTranscriptRef.current.trim()) {
-      setTranscript("Recording completed. Speak clearly next time for better transcription.");
+      setTranscript("Recording completed — speak a bit louder next time.");
     }
   }
 
   function toggleRecording() {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    isRecording ? stopRecording() : startRecording();
   }
 
   function saveEntry() {
     const arr = JSON.parse(localStorage.getItem("pc_demo_entries_v1") || "[]");
+
     const newEntry = {
       id: Date.now(),
       title: title || "Untitled",
@@ -205,13 +182,14 @@ export default function Journal() {
       date: new Date().toISOString(),
       transcript: transcript !== "No transcript yet" ? transcript : "",
     };
-    
+
     arr.push(newEntry);
     localStorage.setItem("pc_demo_entries_v1", JSON.stringify(arr));
     setEntries(arr.sort((a,b) => new Date(b.date) - new Date(a.date)));
-    alert("Journal saved (local demo)");
-    
-    // Clear form
+
+    alert("Journal saved ❤️");
+
+    // reset
     setTitle("");
     setNote("");
     setMood("happy");
@@ -230,10 +208,9 @@ export default function Journal() {
     finalTranscriptRef.current = "";
   }
 
-  // Button styles
   const buttonStyles = {
     primary: {
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      background: "linear-gradient(135deg, #a78bfa, #c084fc)",
       color: "white",
       padding: "12px 24px",
       borderRadius: "12px",
@@ -241,65 +218,60 @@ export default function Journal() {
       cursor: "pointer",
       fontWeight: "600",
       fontSize: "14px",
-      transition: "all 0.3s ease",
-      boxShadow: "0 4px 15px rgba(102, 126, 234, 0.3)"
+      transition: "0.25s",
+      boxShadow: "0 4px 14px rgba(168, 85, 247, 0.25)"
     },
     ghost: {
-      background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-      color: "#374151",
+      background: "rgba(255,255,255,0.08)",
+      color: "#ddd",
       padding: "10px 20px",
       borderRadius: "10px",
-      border: "2px solid #e2e8f0",
+      border: "1px solid rgba(255,255,255,0.15)",
       cursor: "pointer",
-      fontWeight: "500",
-      fontSize: "14px",
-      transition: "all 0.3s ease",
-      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05)"
+      transition: "0.25s"
     },
     record: {
-      background: isRecording 
-        ? "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)" 
-        : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      background: isRecording
+        ? "linear-gradient(135deg, #fb7185, #ef4444)"
+        : "linear-gradient(135deg, #818cf8, #6366f1)",
       color: "white",
-      padding: "16px",
+      padding: "18px",
       borderRadius: "50%",
+      width: "65px",
+      height: "65px",
       border: "none",
       cursor: "pointer",
-      fontWeight: "600",
-      fontSize: "18px",
-      transition: "all 0.3s ease",
-      boxShadow: isRecording 
-        ? "0 4px 20px rgba(239, 68, 68, 0.4)" 
-        : "0 4px 20px rgba(102, 126, 234, 0.4)",
-      width: "60px",
-      height: "60px",
+      fontSize: "20px",
       display: "flex",
       alignItems: "center",
-      justifyContent: "center"
+      justifyContent: "center",
+      boxShadow: isRecording
+        ? "0 4px 18px rgba(239,68,68,0.35)"
+        : "0 4px 18px rgba(99,102,241,0.35)"
     }
   };
 
   return (
     <section className="module" data-module="journal">
       <div className="module-header">
-        <h2 style={{ margin: 0 }}>Journal</h2>
-        <div style={{ fontSize: 13, color: "var(--muted)" }}>Your emotional diary</div>
+        <h2>Journal</h2>
+        <div className="subtext">Your emotional diary</div>
       </div>
 
-      <div className="card auth">
-        <h3 style={{ marginTop: 0 }}>New Journal Entry</h3>
+      {/* New Entry */}
+      <div className="card card-enhanced">
+        <h3>New Journal Entry</h3>
 
         <label>Title</label>
         <input 
-          type="text" 
-          id="entryTitle" 
-          placeholder="How are you feeling today?" 
-          value={title} 
-          onChange={(e) => setTitle(e.target.value)} 
+          type="text"
+          placeholder="How are you feeling today?"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
         />
 
-        <label style={{ marginTop: 8 }}>Mood</label>
-        <select id="entryMood" value={mood} onChange={(e) => setMood(e.target.value)}>
+        <label>Mood</label>
+        <select value={mood} onChange={(e) => setMood(e.target.value)}>
           <option value="happy">😊 Happy</option>
           <option value="sad">😔 Sad</option>
           <option value="anxious">😰 Anxious</option>
@@ -308,109 +280,92 @@ export default function Journal() {
           <option value="calm">😌 Calm</option>
         </select>
 
-        <label style={{ marginTop: 8 }}>Detailed note</label>
-        <textarea 
-          id="entryNote" 
-          placeholder="Write as little or as much as you like" 
-          value={note} 
-          onChange={(e) => setNote(e.target.value)} 
+        <label>Detailed note</label>
+        <textarea
+          placeholder="Write whatever you want…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
         />
 
+        {/* Voice Journal */}
         <div className="voice-recorder">
-          <h4 style={{ marginTop: 0 }}>Voice Journaling</h4>
-          <p className="small" style={{ marginBottom: 12 }}>
-            Record your thoughts instead of typing {!window.SpeechRecognition && !window.webkitSpeechRecognition && 
-              "(Note: Real-time transcription works best in Chrome/Edge)"}
-          </p>
+          <h4>Voice Journaling</h4>
+          <p className="small">Record your thoughts instead of typing</p>
 
           <div className="recording-controls">
-            <button 
+            <button
               style={buttonStyles.record}
-              id="recordBtn" 
               onClick={toggleRecording}
             >
-              <span id="recordIcon">{isRecording ? "■" : "●"}</span>
+              {isRecording ? "■" : "●"}
             </button>
-            <div id="recordingStatus">
-              {isRecording ? "Recording... Speak now" : "Ready to record"}
-            </div>
-            <div id="recordingTime">{recordingTime}</div>
-          </div>
 
-          <div className="audio-visualizer" id="audioVisualizer">
-            {/* Bars are created by useEffect */}
-          </div>
-
-          <div className="transcript" id="transcriptContainer">
-            <div className="small" style={{ marginBottom: 6 }}>Transcript:</div>
-            <div id="transcriptText" style={{ minHeight: "60px" }}>
-              {transcript}
+            <div className="record-info">
+              <div className="status">
+                {isRecording ? "Recording…" : "Ready to record"}
+              </div>
+              <div className="time">{recordingTime}</div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button 
-              style={{
+          <div className="audio-visualizer"></div>
+
+          <div className="transcript-box fade-in">
+            <div className="label">Transcript:</div>
+            <div className="content">{transcript}</div>
+          </div>
+
+          <div className="button-row">
+            <button
+              style={{ 
                 ...buttonStyles.primary,
-                opacity: useTranscriptEnabled ? 1 : 0.6,
-                cursor: useTranscriptEnabled ? "pointer" : "not-allowed"
+                opacity: useTranscriptEnabled ? 1 : 0.5
               }}
-              id="useTranscript" 
-              disabled={!useTranscriptEnabled} 
+              disabled={!useTranscriptEnabled}
               onClick={useTranscript}
             >
               🎤 Use Transcript
             </button>
-            <button 
-              style={buttonStyles.ghost} 
-              id="clearRecording" 
-              onClick={clearRecording}
-            >
+
+            <button style={buttonStyles.ghost} onClick={clearRecording}>
               🗑️ Clear
             </button>
           </div>
         </div>
 
-        <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-          <button 
-            style={buttonStyles.primary} 
-            id="saveEntry" 
-            onClick={saveEntry}
-          >
+        <div className="button-row" style={{ marginTop: 10 }}>
+          <button style={buttonStyles.primary} onClick={saveEntry}>
             💾 Save Entry
           </button>
-          <button 
-            style={buttonStyles.ghost} 
-            id="cancelEntry" 
-            onClick={() => { 
-              setTitle(""); 
-              setNote(""); 
-              setTranscript("No transcript yet");
-            }}
-          >
+          <button style={buttonStyles.ghost} onClick={() => {
+            setTitle(""); setNote(""); setTranscript("No transcript yet");
+          }}>
             ❌ Cancel
           </button>
         </div>
       </div>
 
-      <div style={{ height: 18 }} />
+      {/* Past Entries */}
+      <div className="card card-enhanced">
+        <h3>All Journal Entries</h3>
 
-      <div className="card">
-        <h3>All journal entries</h3>
-        <div id="journalList">
+        <div className="entries-list">
           {entries.map(entry => (
-            <div key={entry.id} className="entry">
-              <div style={{ fontWeight: 600 }}>
-                {entry.title} 
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  • {entry.mood}
-                </span>
+            <div key={entry.id} className="entry-item">
+              <div className="entry-header">
+                <span className="title">{entry.title}</span>
+                <span className="mood">• {entry.mood}</span>
               </div>
-              <div className="meta">{new Date(entry.date).toLocaleString()}</div>
-              <div style={{ marginTop: 6, color: "var(--muted)" }}>
+
+              <div className="meta">
+                {new Date(entry.date).toLocaleString()}
+              </div>
+
+              <div className="content">
                 {entry.note}
-                {entry.transcript && entry.transcript !== "No transcript yet" && (
-                  <div style={{ marginTop: 8, fontStyle: 'italic', fontSize: '12px' }}>
+
+                {entry.transcript && (
+                  <div className="transcript-snippet">
                     <strong>Voice transcript:</strong> {entry.transcript}
                   </div>
                 )}

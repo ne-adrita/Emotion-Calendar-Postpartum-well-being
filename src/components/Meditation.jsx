@@ -166,27 +166,100 @@ export default function MeditationPanelAdvancedWithTF() {
     stopBreathing();
   };
 
-  // ---------- SLEEP TRACKER ----------
+  // ---------- SLEEP TRACKER FUNCTIONS ----------
   const addSleepEntry = (entry) => {
     const updated = [entry, ...sleepEntries].slice(0, 365);
     setSleepEntries(updated);
     localStorage.setItem("med_sleep_entries", JSON.stringify(updated));
   };
+
   const handleAddSleep = (e) => {
     e.preventDefault();
     const date = e.target.date.value || new Date().toISOString().slice(0, 10);
     const hours = Number(e.target.hours.value) || 0;
     const quality = e.target.quality.value || "Unknown";
+    
+    // Validate hours
+    if (hours < 0 || hours > 24) {
+      alert('Please enter a valid number of hours (0-24)');
+      return;
+    }
+
     addSleepEntry({ id: Date.now(), date, hours, quality });
     e.target.reset();
+    e.target.querySelector('input[name="date"]').value = new Date().toISOString().slice(0,10);
   };
+
   const exportSleepCSV = () => {
-    if (!sleepEntries.length) { alert("No sleep entries to export."); return; }
+    if (!sleepEntries.length) { 
+      alert("No sleep entries to export."); 
+      return; 
+    }
     const header = "date,hours,quality\n";
     const rows = sleepEntries.map(s => `${s.date},${s.hours},${s.quality}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "sleep_entries.csv"; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a"); 
+    a.href = url; 
+    a.download = `sleep-data-${new Date().toISOString().slice(0,10)}.csv`; 
+    a.click(); 
+    URL.revokeObjectURL(url);
+  };
+
+  const deleteSleepEntry = (id) => {
+    const updatedEntries = sleepEntries.filter(entry => entry.id !== id);
+    setSleepEntries(updatedEntries);
+    localStorage.setItem("med_sleep_entries", JSON.stringify(updatedEntries));
+  };
+
+  const getQualityColor = (quality) => {
+    switch (quality) {
+      case 'Excellent': return '#10b981';
+      case 'Good': return '#3b82f6';
+      case 'Fair': return '#f59e0b';
+      case 'Poor': return '#ef4444';
+      default: return '#6b7280';
+    }
+  };
+
+  const getSleepRecommendation = () => {
+    if (sleepEntries.length === 0) {
+      return "Start tracking your sleep to get personalized recommendations for postpartum recovery!";
+    }
+    
+    const avgHours = sleepEntries.reduce((a, b) => a + b.hours, 0) / sleepEntries.length;
+    const goodSleepDays = sleepEntries.filter(s => s.quality === "Excellent" || s.quality === "Good").length;
+    const sleepPercentage = (goodSleepDays / sleepEntries.length) * 100;
+    
+    let message = "";
+
+    if (avgHours >= 7 && avgHours <= 9) {
+      message = `Excellent! You're averaging ${avgHours.toFixed(1)} hours with ${sleepPercentage.toFixed(0)}% good quality sleep. Perfect for postpartum recovery!`;
+    } else if (avgHours >= 5 && avgHours < 7) {
+      message = `You're averaging ${avgHours.toFixed(1)} hours. Try to nap when baby naps - every hour helps with recovery and mood.`;
+    } else if (avgHours < 5) {
+      message = `At ${avgHours.toFixed(1)} hours average, prioritize rest. Ask for help with night feeds and take short daytime naps.`;
+    } else if (avgHours > 9) {
+      message = `You're getting ${avgHours.toFixed(1)} hours - great for recovery! Ensure you're also getting gentle movement during awake times.`;
+    }
+
+    // Add quality-based advice
+    if (sleepPercentage < 50) {
+      message += " Consider improving sleep environment: dark room, comfortable temperature, and white noise.";
+    }
+
+    return message;
+  };
+
+  const getTrendIcon = () => {
+    if (sleepEntries.length < 2) return '➡️';
+    
+    const recentAvg = sleepEntries.slice(0, 3).reduce((a, b) => a + b.hours, 0) / Math.min(3, sleepEntries.length);
+    const previousAvg = sleepEntries.slice(3, 6).reduce((a, b) => a + b.hours, 0) / Math.min(3, sleepEntries.length - 3);
+    
+    if (recentAvg > previousAvg + 0.5) return '📈';
+    if (recentAvg < previousAvg - 0.5) return '📉';
+    return '➡️';
   };
 
   // ---------- cleanup on unmount ----------
@@ -233,7 +306,7 @@ export default function MeditationPanelAdvancedWithTF() {
           </div>
 
           <div className="card" style={{ marginBottom: 12, padding: '20px' }}>
-  <h3 style={{ color: THEME.accent, marginTop: 0 }}>Breathing Exercise</h3>
+            <h3 style={{ color: THEME.accent, marginTop: 0 }}>Breathing Exercise</h3>
             <div style={{ display: "flex", gap: 50, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{
                 width: 100, height: 100, borderRadius: 999, display: "grid", placeItems: "center",
@@ -265,79 +338,295 @@ export default function MeditationPanelAdvancedWithTF() {
             <div style={{ fontWeight: 700, fontSize: 15 }}>{tip}</div>
             <div style={{ color: "#9AA6B2", marginTop: 8 }}>Tips rotate every 25 seconds.</div>
           </div>
+        </div>
 
+        {/* RIGHT - Enhanced Sleep Tracker & Summary */}
+        <div className="rightCol">
+          {/* Sleep Tracker Card */}
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ color: THEME.accent, marginTop: 0 }}>Sleep Tracker</h3>
-            <form onSubmit={handleAddSleep} style={{ display: "grid", gap: 8 }}>
-              <label style={{ color: "#9AA6B2" }}>Date: <input name="date" type="date" defaultValue={new Date().toISOString().slice(0,10)} /></label>
-              <label style={{ color: "#9AA6B2" }}>Hours: <input name="hours" type="number" step="0.25" placeholder="e.g. 6.5" /></label>
-              <label style={{ color: "#9AA6B2" }}>Quality:
-                <select name="quality">
-                  <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor</option><option>Unknown</option>
+            <form onSubmit={handleAddSleep} style={{ display: "grid", gap: 12 }}>
+              <label style={{ color: "#9AA6B2", display: "grid", gap: 4 }}>
+                Date:
+                <input 
+                  name="date" 
+                  type="date" 
+                  defaultValue={new Date().toISOString().slice(0,10)}
+                  style={{
+                    padding: "8px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "4px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white"
+                  }}
+                  required
+                />
+              </label>
+              
+              <label style={{ color: "#9AA6B2", display: "grid", gap: 4 }}>
+                Hours:
+                <input 
+                  name="hours" 
+                  type="number" 
+                  step="0.25" 
+                  min="0"
+                  max="24"
+                  placeholder="e.g. 6.5" 
+                  style={{
+                    padding: "8px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "4px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white"
+                  }}
+                  required
+                />
+              </label>
+              
+              <label style={{ color: "#9AA6B2", display: "grid", gap: 4 }}>
+                Quality:
+                <select 
+                  name="quality"
+                  style={{
+                    padding: "8px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "4px",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white"
+                  }}
+                >
+                  <option>Excellent</option>
+                  <option>Good</option>
+                  <option>Fair</option>
+                  <option>Poor</option>
+                  <option>Unknown</option>
                 </select>
               </label>
+              
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" style={{ background: THEME.accent, color: THEME.bg }} type="submit">Save Entry</button>
-                <button className="btn" style={{ background: THEME.highlight, color: THEME.bg }} onClick={(e)=>{ e.preventDefault(); exportSleepCSV(); }}>Export CSV</button>
+                <button 
+                  className="btn" 
+                  style={{ 
+                    background: THEME.accent, 
+                    color: THEME.bg,
+                    padding: "8px 16px",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    flex: 1
+                  }} 
+                  type="submit"
+                >
+                  Save Entry
+                </button>
+                <button 
+                  className="btn" 
+                  style={{ 
+                    background: THEME.highlight, 
+                    color: THEME.bg,
+                    padding: "8px 16px",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }} 
+                  onClick={(e)=>{ e.preventDefault(); exportSleepCSV(); }}
+                  disabled={sleepEntries.length === 0}
+                >
+                  Export CSV
+                </button>
               </div>
             </form>
           </div>
-        </div>
 
-        {/* RIGHT */}
-        <div className="rightCol">
+          {/* Sleep Summary Card */}
           <div className="card" style={{ marginBottom: 12 }}>
-            <h3 style={{ color: THEME.accent, marginTop: 0 }}>Today's Sleep Summary</h3>
-            <div style={{ color: "#9AA6B2", marginBottom: 8 }}>
-              Review your sleep for the past days and get personalized advice based on your average sleep duration.
+            <h3 style={{ color: THEME.accent, marginTop: 0 }}>Sleep Summary</h3>
+            
+            {/* Sleep Statistics */}
+            {sleepEntries.length > 0 && (
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr 1fr", 
+                gap: 12, 
+                marginBottom: 16,
+                padding: "12px",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: "8px"
+              }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: THEME.accent }}>
+                    {sleepEntries.length}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#9AA6B2" }}>Total Entries</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: THEME.accent }}>
+                    {sleepEntries.length > 0 ? (sleepEntries.reduce((a, b) => a + b.hours, 0) / sleepEntries.length).toFixed(1) : 0}h
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#9AA6B2" }}>Avg. Hours</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: THEME.accent }}>
+                    {sleepEntries.filter(s => s.quality === "Excellent" || s.quality === "Good").length}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#9AA6B2" }}>Good+ Days</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: "24px", fontWeight: "bold", color: THEME.accent }}>
+                    {sleepEntries.length > 0 ? Math.max(...sleepEntries.map(s => s.hours)).toFixed(1) : 0}h
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#9AA6B2" }}>Best Sleep</div>
+                </div>
+              </div>
+            )}
+
+            {/* Personalized Advice */}
+            <div style={{ color: "#9AA6B2", marginBottom: 16, lineHeight: 1.5 }}>
+              {sleepEntries.length > 0 ? (() => {
+                const avgHours = sleepEntries.reduce((a, b) => a + b.hours, 0) / sleepEntries.length;
+                const goodSleepDays = sleepEntries.filter(s => s.quality === "Excellent" || s.quality === "Good").length;
+                const sleepPercentage = (goodSleepDays / sleepEntries.length) * 100;
+                
+                let message = "";
+                let color = THEME.accent;
+
+                if (avgHours >= 7 && avgHours <= 9) {
+                  message = `Excellent! You're averaging ${avgHours.toFixed(1)} hours with ${sleepPercentage.toFixed(0)}% good quality sleep. Perfect for postpartum recovery!`;
+                  color = "#42f584";
+                } else if (avgHours >= 5 && avgHours < 7) {
+                  message = `You're averaging ${avgHours.toFixed(1)} hours. Try to nap when baby naps - every hour helps with recovery and mood.`;
+                  color = "#f5c142";
+                } else if (avgHours < 5) {
+                  message = `At ${avgHours.toFixed(1)} hours average, prioritize rest. Ask for help with night feeds and take short daytime naps.`;
+                  color = "#f54242";
+                } else if (avgHours > 9) {
+                  message = `You're getting ${avgHours.toFixed(1)} hours - great for recovery! Ensure you're also getting gentle movement during awake times.`;
+                  color = "#42d3f5";
+                }
+
+                // Add quality-based advice
+                if (sleepPercentage < 50) {
+                  message += " Consider improving sleep environment: dark room, comfortable temperature, and white noise.";
+                }
+
+                return <span style={{ color, fontWeight: "500" }}>{message}</span>;
+              })() : "Add your sleep entries to get personalized advice and track your postpartum recovery."}
+            </div>
+
+            {/* Recent Sleep Entries */}
+            <div style={{ color: "#9AA6B2", marginBottom: 8, fontWeight: "600", fontSize: "14px" }}>
+              Recent Entries ({sleepEntries.length} total)
             </div>
 
             {sleepEntries.length === 0 ? (
-              <div style={{ color: "#9AA6B2" }}>No sleep entries yet — add one above.</div>
+              <div style={{ 
+                color: "#9AA6B2", 
+                textAlign: "center", 
+                padding: "20px",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: "8px",
+                fontSize: "14px"
+              }}>
+                No sleep entries yet — track your sleep to monitor postpartum recovery!
+              </div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
-                <thead>
-                  <tr style={{ textAlign: "left", color: "#9AA6B2", fontSize: 13 }}>
-                    <th>Date</th><th>Hours</th><th>Quality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sleepEntries.slice(0, 7).map(s => (
-                    <tr key={s.id} style={{ borderBottom: "1px dashed rgba(255,255,255,0.04)" }}>
-                      <td style={{ padding: "6px 0" }}>{s.date}</td>
-                      <td style={{ padding: "6px 0" }}>{s.hours}</td>
-                      <td style={{ padding: "6px 0" }}>{s.quality}</td>
+              <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: "#9AA6B2", fontSize: 13 }}>
+                      <th style={{ padding: "8px 4px" }}>Date</th>
+                      <th style={{ padding: "8px 4px" }}>Hours</th>
+                      <th style={{ padding: "8px 4px" }}>Quality</th>
+                      <th style={{ padding: "8px 4px", width: "40px" }}></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sleepEntries.slice(0, 7).map(s => (
+                      <tr key={s.id} style={{ borderBottom: "1px dashed rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "8px 4px", fontSize: "14px" }}>{s.date}</td>
+                        <td style={{ padding: "8px 4px", fontSize: "14px" }}>{s.hours}h</td>
+                        <td style={{ padding: "8px 4px" }}>
+                          <span style={{ 
+                            color: getQualityColor(s.quality),
+                            fontSize: "14px",
+                            fontWeight: "500"
+                          }}>
+                            {s.quality}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 4px", textAlign: "center" }}>
+                          <button
+                            onClick={() => deleteSleepEntry(s.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#ef4444",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              opacity: 0.7
+                            }}
+                            title="Delete entry"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {sleepEntries.length > 7 && (
+                  <div style={{ 
+                    textAlign: "center", 
+                    color: "#9AA6B2", 
+                    fontSize: "12px", 
+                    marginTop: "8px",
+                    padding: "8px"
+                  }}>
+                    Showing 7 of {sleepEntries.length} entries
+                  </div>
+                )}
+              </div>
             )}
 
-<div style={{ marginTop: 10, fontWeight: 600 }}>
-  {sleepEntries.length > 0 ? (() => {
-    const avgHours = sleepEntries.reduce((a, b) => a + b.hours, 0) / sleepEntries.length;
-    let message = "";
-    let color = "";
-
-    if (avgHours >= 7 && avgHours <= 12) {
-      message = "Great! You are getting sufficient sleep. Keep it up!";
-      color = "#42f584"; // green
-    } else if (avgHours < 7) {
-      message = "Try to get more sleep — even small naps help improve energy and mood.";
-      color = "#f5c142"; // orange
-    } else if (avgHours > 12) {
-      message = "You are sleeping longer than usual. Make sure it does not affect your daily routine.";
-      color = "#f54242"; // red
-    }
-
-    return <span style={{ color }}>{message}</span>;
-  })() : <span style={{ color: "#FFD6E0" }}>Add your sleep entry to get advice.</span>}
-</div>
-
-
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-              <button className="btn" style={{ background: THEME.accent, color: THEME.bg }} onClick={exportSleepCSV}>Export CSV</button>
-              <button className="btn" style={{ background: THEME.highlight, color: THEME.bg }} onClick={() => { setSleepEntries([]); localStorage.removeItem("med_sleep_entries"); }}>Clear History</button>
+            {/* Action Buttons */}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button 
+                className="btn" 
+                style={{ 
+                  background: THEME.accent, 
+                  color: THEME.bg,
+                  padding: "8px 16px",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  flex: 1
+                }} 
+                onClick={exportSleepCSV}
+                disabled={sleepEntries.length === 0}
+              >
+                Export CSV
+              </button>
+              <button 
+                className="btn" 
+                style={{ 
+                  background: THEME.highlight, 
+                  color: THEME.bg,
+                  padding: "8px 16px",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }} 
+                onClick={() => { 
+                  if (confirm("Clear all sleep entries?")) { 
+                    setSleepEntries([]); 
+                    localStorage.removeItem("med_sleep_entries"); 
+                  } 
+                }}
+                disabled={sleepEntries.length === 0}
+              >
+                Clear History
+              </button>
             </div>
           </div>
         </div>
