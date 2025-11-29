@@ -1,7 +1,7 @@
 import os
 
 # Configuration
-root_dir = r'/Users/noshinebnatadrita/Documents/naptagram/'  # Replace with your codebase root
+root_dir = r'/Users/noshinebnatadrita/Documents/Cse327 Project'  # Replace with your codebase root
 output_file = 'full_codebase.txt'
 include_extensions = ['.js', '.jsx', '.html', '.css']  # Change as needed
 exclude_dirs = {'node_modules'}
